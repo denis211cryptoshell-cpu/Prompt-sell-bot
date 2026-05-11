@@ -158,5 +158,10 @@ class Product(Base):
     def formatted_buy_button(self, lang: str = "ru") -> str:
         return self.get_buy_button_text(lang).replace("{price}", str(self.price))
 
+    def formatted_buy_button_en(self, price_usd: str = "") -> str:
+        """Buy button with USD price. Uses EN custom text if set, else default."""
+        template = self.buy_button_text_en or "💳 Buy for {price}"
+        return template.replace("{price}", price_usd or "—")
+
     def __repr__(self) -> str:
         return f"<Product id={self.id} name={self.name!r} price={self.price}>"

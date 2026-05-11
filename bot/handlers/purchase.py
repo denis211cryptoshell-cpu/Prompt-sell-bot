@@ -1,4 +1,4 @@
-"""Purchase flow handlers — confirmation, Robokassa payment, file delivery."""
+"""Purchase flow handlers — EN only, price in USD."""
 import re
 from typing import Optional
 
@@ -13,7 +13,6 @@ from bot.keyboards.main_kb import (
     back_to_menu_kb,
     product_kb,
     pay_with_robokassa_kb,
-    waiting_payment_kb,
 )
 from bot.services.product_service import get_or_create_product
 from bot.services.purchase_service import (
@@ -22,10 +21,7 @@ from bot.services.purchase_service import (
     has_purchased,
 )
 from bot.services.robokassa import generate_payment_link, calculate_total
-from bot.services.currency import get_price_display
-from bot.services.user_service import get_user_lang
-from bot.utils.text import no_pdf_text, robokassa_waiting_text, fmt_price
-from bot.i18n import t
+from bot.services.currency import rub_to_usd, format_usd
 
 router = Router(name="purchase")
 
@@ -41,7 +37,7 @@ def _extract_product_id(data: str) -> Optional[int]:
 
 @router.callback_query(F.data.startswith("purchase:start:"))
 async def cb_purchase_start(callback: CallbackQuery) -> None:
-    """Show purchase confirmation screen with price breakdown."""
+    """Show purchase confirmation screen with price in USD."""
     user = callback.from_user
     await callback.answer()
 
@@ -51,59 +47,63 @@ async def cb_purchase_start(callback: CallbackQuery) -> None:
 
     factory = get_session_factory()
     async with factory() as session:
-        lang = await get_user_lang(session, user.id)
         product = await get_or_create_product(session)
         already = await has_purchased(session, user.id, product.id)
 
     if already:
         logger.info("Purchase start: already purchased | user_id={}", user.id)
+        usd_val = await rub_to_usd(product.price)
+        price_usd = format_usd(usd_val)
         await callback.message.edit_text(  # type: ignore[union-attr]
-            text=product.get_already_purchased_text(lang),
-            reply_markup=product_kb(product, already_purchased=True, lang=lang),
+            text=product.get_already_purchased_text("en"),
+            reply_markup=product_kb(product, already_purchased=True, price_usd=price_usd),
             parse_mode="HTML",
         )
         return
 
-    # Calculate price breakdown with Robokassa commission
+    # Calculate price breakdown
     breakdown = calculate_total(product.price)
-    price_display = await get_price_display(breakdown["total"])
+    total_amount = breakdown["total"]
+    usd_val = await rub_to_usd(total_amount)
+    price_usd = format_usd(usd_val)
 
     logger.info(
-        "Purchase started | user_id={} product_id={} base={} total={} commission={} lang={}",
-        user.id, product.id,
-        breakdown["base"], breakdown["total"], breakdown["commission"], lang,
+        "Purchase started | user_id={} product_id={} base={} total={} usd={}",
+        user.id, product.id, breakdown["base"], total_amount, price_usd,
     )
 
-    # Build HTML confirm screen (includes DB footer: оферта/ИНН/email)
-    footer = product.get_confirm_footer(lang)
-    sep = t("separator", lang)
+    footer = product.get_confirm_footer("en")
+    sep = "━━━━━━━━━━━━━━━━━━━━"
+    name = product.get_name("en")
+
     if settings.is_demo_payment:
         confirm_text = (
-            f"{t('confirm_title', lang)}\n\n"
-            f"{t('confirm_product', lang, name=product.get_name(lang))}\n\n"
+            f"🛒 <b>Purchase confirmation</b>\n\n"
+            f"📦 Product: <b>{name}</b>\n\n"
             f"{sep}\n"
-            f"{t('confirm_price_demo', lang, price_usd=price_display['usd'], price=fmt_price(breakdown['total']))}\n"
+            f"💰 Total: <b>{price_usd}</b>\n"
             f"{sep}\n\n"
-            f"{t('confirm_demo_note', lang)}\n\n"
+            f"<i>🧪 Demo mode — no real payment required</i>\n\n"
             f"{sep}\n"
             f"{footer}"
         )
     else:
+        usd_base = format_usd(await rub_to_usd(breakdown["base"]))
         confirm_text = (
-            f"{t('confirm_title', lang)}\n\n"
-            f"{t('confirm_product', lang, name=product.get_name(lang))}\n\n"
+            f"🛒 <b>Purchase confirmation</b>\n\n"
+            f"📦 Product: <b>{name}</b>\n\n"
             f"{sep}\n"
-            f"{t('confirm_price_base', lang, price_usd=price_display['usd'], price=fmt_price(breakdown['base']))}\n"
-            f"{t('confirm_commission', lang, rate=breakdown['rate_pct'], commission=fmt_price(breakdown['commission']))}\n"
+            f"💵 Price: <b>{usd_base}</b>\n"
+            f"🏦 Robokassa fee ({breakdown['rate_pct']}%): ~{format_usd(await rub_to_usd(breakdown['commission']))}\n"
             f"{sep}\n"
-            f"{t('confirm_total', lang, price_usd=price_display['usd'], price=fmt_price(breakdown['total']))}\n"
+            f"💳 <b>Total: {price_usd}</b>\n"
             f"{sep}\n\n"
             f"{footer}"
         )
 
     await callback.message.edit_text(  # type: ignore[union-attr]
         text=confirm_text,
-        reply_markup=confirm_purchase_kb(product, lang=lang),
+        reply_markup=confirm_purchase_kb(product),
         parse_mode="HTML",
     )
 
@@ -122,14 +122,12 @@ async def cb_purchase_confirm(callback: CallbackQuery, bot: Bot) -> None:
 
     factory = get_session_factory()
     async with factory() as session:
-        lang = await get_user_lang(session, user.id)
         product = await get_or_create_product(session)
 
     if settings.is_demo_payment:
-        # ── DEMO MODE: skip real payment, deliver file immediately ─────────
         logger.info(
-            "Demo payment confirmed | user_id={} product_id={} amount={} lang={}",
-            user.id, product.id, product.price, lang,
+            "Demo payment confirmed | user_id={} product_id={} amount={}",
+            user.id, product.id, product.price,
         )
         await _complete_purchase(
             bot=bot,
@@ -138,10 +136,8 @@ async def cb_purchase_confirm(callback: CallbackQuery, bot: Bot) -> None:
             user_id=user.id,
             product=product,
             payment_id="demo",
-            lang=lang,
         )
     else:
-        # ── ROBOKASSA MODE: create pending purchase and send payment link ───
         breakdown = calculate_total(product.price)
         total_amount = breakdown["total"]
 
@@ -158,26 +154,28 @@ async def cb_purchase_confirm(callback: CallbackQuery, bot: Bot) -> None:
         pay_url = generate_payment_link(
             inv_id=inv_id,
             amount_rub=total_amount,
-            description=product.get_name(lang)[:100],
+            description=product.get_name("en")[:100],
         )
 
-        price_display = await get_price_display(total_amount)
+        usd_val = await rub_to_usd(total_amount)
+        price_usd = format_usd(usd_val)
 
         logger.info(
-            "Robokassa payment link generated | user_id={} inv_id={} amount={} lang={}",
-            user.id, inv_id, total_amount, lang,
+            "Robokassa payment link generated | user_id={} inv_id={} amount={} usd={}",
+            user.id, inv_id, total_amount, price_usd,
         )
 
         await callback.message.edit_text(  # type: ignore[union-attr]
-            text=robokassa_waiting_text(
-                name=product.get_name(lang),
-                total_price=total_amount,
-                price_usd=price_display["usd"],
-                inv_id=inv_id,
-                test_mode=settings.ROBOKASSA_TEST_MODE,
-                lang=lang,
+            text=(
+                f"💳 *Payment via Robokassa*\n\n"
+                f"Product: *{product.get_name('en')}*\n"
+                f"Amount: *{price_usd}*\n"
+                f"Order: `#{inv_id}`\n\n"
+                f"Click the button below to go to the payment page\\.\n\n"
+                f"_The file will be delivered automatically after payment\\._"
+                + ("\n\n⚠️ _Test mode: no real money is charged_" if settings.ROBOKASSA_TEST_MODE else "")
             ),
-            reply_markup=pay_with_robokassa_kb(pay_url, product.id, lang=lang),
+            reply_markup=pay_with_robokassa_kb(pay_url, product.id),
             parse_mode="MarkdownV2",
         )
 
@@ -192,21 +190,19 @@ async def cb_download_again(callback: CallbackQuery, bot: Bot) -> None:
 
     factory = get_session_factory()
     async with factory() as session:
-        lang = await get_user_lang(session, user.id)
         product = await get_or_create_product(session)
         purchased = await has_purchased(session, user.id, product.id)
 
     if not purchased:
         logger.warning("Download attempt without purchase | user_id={}", user.id)
-        err_msg = "❌ Покупка не найдена." if lang == "ru" else "❌ Purchase not found."
-        await callback.answer(err_msg, show_alert=True)
+        await callback.answer("❌ Purchase not found.", show_alert=True)
         return
 
     if not product.pdf_file_id:
         logger.warning("Download: no file_id | user_id={} product_id={}", user.id, product.id)
         await callback.message.edit_text(  # type: ignore[union-attr]
-            text=no_pdf_text(lang),
-            reply_markup=back_to_menu_kb(lang),
+            text="⚠️ *File temporarily unavailable*\n\nThe administrator has been notified\\.",
+            reply_markup=back_to_menu_kb(),
             parse_mode="MarkdownV2",
         )
         return
@@ -215,7 +211,7 @@ async def cb_download_again(callback: CallbackQuery, bot: Bot) -> None:
     await bot.send_document(
         chat_id=user.id,
         document=product.pdf_file_id,
-        caption=product.get_file_caption(lang),
+        caption=product.get_file_caption("en"),
     )
 
 
@@ -228,7 +224,6 @@ async def _complete_purchase(
     user_id: int,
     product,
     payment_id: str,
-    lang: str = "ru",
 ) -> None:
     """Record completed purchase in DB and deliver file to user."""
     factory = get_session_factory()
@@ -243,30 +238,28 @@ async def _complete_purchase(
         )
         await session.commit()
 
-    success_text = product.get_success_text(lang)
-    # Edit the current message to show success
+    success_text = product.get_success_text("en")
     try:
         await message.edit_text(
             text=success_text,
-            reply_markup=back_to_menu_kb(lang),
+            reply_markup=back_to_menu_kb(),
             parse_mode="HTML",
         )
     except Exception:
         await bot.send_message(
             chat_id=chat_id,
             text=success_text,
-            reply_markup=back_to_menu_kb(lang),
+            reply_markup=back_to_menu_kb(),
             parse_mode="HTML",
         )
 
-    # Send file
     if product.pdf_file_id:
         await bot.send_document(
             chat_id=chat_id,
             document=product.pdf_file_id,
-            caption=product.get_file_caption(lang),
+            caption=product.get_file_caption("en"),
         )
-        logger.info("File delivered | user_id={} product_id={} lang={}", user_id, product.id, lang)
+        logger.info("File delivered | user_id={} product_id={}", user_id, product.id)
     else:
         logger.warning(
             "Purchase completed but no file to deliver | user_id={} product_id={}",
@@ -274,6 +267,6 @@ async def _complete_purchase(
         )
         await bot.send_message(
             chat_id=chat_id,
-            text=no_pdf_text(lang),
+            text="⚠️ *File temporarily unavailable*\n\nThe administrator has been notified\\.",
             parse_mode="MarkdownV2",
         )

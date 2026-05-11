@@ -25,8 +25,6 @@ from bot.services.purchase_service import (
     get_purchase_by_inv_id,
 )
 from bot.services.product_service import get_or_create_product
-from bot.services.user_service import get_user_lang
-from bot.utils.text import no_pdf_text
 
 
 async def handle_result_url(request: web.Request) -> web.Response:
@@ -87,7 +85,6 @@ async def handle_result_url(request: web.Request) -> web.Response:
 
             user_id = purchase.user_id
             product = await get_or_create_product(session)
-            lang = await get_user_lang(session, user_id)
             await session.commit()
 
         # Deliver file to user via Telegram bot
@@ -95,23 +92,23 @@ async def handle_result_url(request: web.Request) -> web.Response:
         try:
             await bot.send_message(
                 chat_id=user_id,
-                text=product.get_success_text(lang),
+                text=product.get_success_text("en"),
                 parse_mode="HTML",
             )
             if product.pdf_file_id:
                 await bot.send_document(
                     chat_id=user_id,
                     document=product.pdf_file_id,
-                    caption=product.get_file_caption(lang),
+                    caption=product.get_file_caption("en"),
                 )
                 logger.info(
-                    "File delivered after Robokassa payment | user_id={} inv_id={} lang={}",
-                    user_id, inv_id, lang,
+                    "File delivered after Robokassa payment | user_id={} inv_id={}",
+                    user_id, inv_id,
                 )
             else:
                 await bot.send_message(
                     chat_id=user_id,
-                    text=no_pdf_text(lang),
+                    text="⚠️ *File temporarily unavailable*\n\nThe administrator has been notified\\.",
                     parse_mode="MarkdownV2",
                 )
                 logger.warning(

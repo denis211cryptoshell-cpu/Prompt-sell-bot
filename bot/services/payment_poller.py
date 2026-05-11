@@ -21,29 +21,27 @@ from bot.database import get_session_factory
 from bot.models.purchase import Purchase
 from bot.services.robokassa import check_payment_status
 from bot.services.product_service import get_or_create_product
-from bot.services.user_service import get_user_lang
-from bot.utils.text import no_pdf_text
 
 
-async def _deliver_file(bot: Bot, user_id: int, product, lang: str = "ru") -> None:
-    """Send success message and file to the user."""
+async def _deliver_file(bot: Bot, user_id: int, product) -> None:
+    """Send success message and file to the user (EN only)."""
     try:
         await bot.send_message(
             chat_id=user_id,
-            text=product.get_success_text(lang),
+            text=product.get_success_text("en"),
             parse_mode="HTML",
         )
         if product.pdf_file_id:
             await bot.send_document(
                 chat_id=user_id,
                 document=product.pdf_file_id,
-                caption=product.get_file_caption(lang),
+                caption=product.get_file_caption("en"),
             )
-            logger.info("Poller: file delivered | user_id={} lang={}", user_id, lang)
+            logger.info("Poller: file delivered | user_id={}", user_id)
         else:
             await bot.send_message(
                 chat_id=user_id,
-                text=no_pdf_text(lang),
+                text="⚠️ *File temporarily unavailable*\n\nThe administrator has been notified\\.",
                 parse_mode="MarkdownV2",
             )
             logger.warning("Poller: no file to deliver | user_id={}", user_id)
@@ -115,9 +113,8 @@ async def poll_pending_payments(bot: Bot) -> None:
                     await session.commit()
 
                     product = await get_or_create_product(session)
-                    lang = await get_user_lang(session, purchase.user_id)
 
-            await _deliver_file(bot, purchase.user_id, product, lang=lang)
+            await _deliver_file(bot, purchase.user_id, product)
             logger.info(
                 "Poller: purchase completed | inv_id={} user_id={} amount={}",
                 purchase.id, purchase.user_id, purchase.amount,
