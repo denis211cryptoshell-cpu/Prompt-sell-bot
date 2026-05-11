@@ -1,0 +1,51 @@
+# Systemd service for prompt-bot on Ubuntu 24
+# Install: cp deploy/prompt-bot.service /etc/systemd/system/
+# Enable:  systemctl daemon-reload && systemctl enable prompt-bot && systemctl start prompt-bot
+
+[Unit]
+Description=Telegram Prompt Pack Bot
+Documentation=https://github.com/yourrepo/prompt-bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/prompt-bot
+
+# Python venv path
+Environment=PATH=/opt/prompt-bot/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# Load .env file
+EnvironmentFile=/opt/prompt-bot/.env
+
+# Run the bot
+ExecStart=/opt/prompt-bot/venv/bin/python -m bot.main
+
+# Restart policy
+Restart=always
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Output to systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=prompt-bot
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# File descriptor limits
+LimitNOFILE=65536
+
+# Graceful shutdown timeout
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

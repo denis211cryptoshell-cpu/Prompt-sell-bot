@@ -1,0 +1,21 @@
+# Telegram Bot
+aiogram==3.20.0
+
+# Database
+sqlalchemy==2.0.41
+alembic==1.15.2
+asyncpg==0.30.0
+aiosqlite==0.21.0
+
+# Configuration
+pydantic-settings==2.9.1
+python-dotenv==1.1.0
+
+# Logging
+loguru==0.7.3
+
+# Caching
+cachetools==5.5.2
+
+# HTTP client (currency API + Robokassa webhook server)
+aiohttp==3.11.18

@@ -1,0 +1,48 @@
+version: "3.9"
+
+# ─── Production docker-compose for play2go.cloud (Ubuntu 24) ─────────────────
+# Usage:
+#   docker compose build --no-cache
+#   docker compose run --rm bot python -m alembic upgrade head
+#   docker compose up -d
+#   docker compose logs -f bot
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: prompt-bot:latest
+    container_name: prompt-bot
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # SQLite database + uploaded files persist across restarts
+      - ./data:/app/data
+      # Loguru log files
+      - ./logs:/app/logs
+    networks:
+      - bot-network
+    # Health check — ensures container is restarted if bot hangs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Resource limits (adjust based on your VPS plan)
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  bot-network:
+    driver: bridge
