@@ -15,6 +15,8 @@ from bot.keyboards.admin_kb import (
     admin_customize_kb,
     admin_back_customize_kb,
     admin_cancel_customize_kb,
+    admin_en_customize_kb,
+    admin_cancel_en_kb,
 )
 from bot.keyboards.main_kb import product_kb
 from bot.models.purchase import Purchase
@@ -272,7 +274,11 @@ _CUSTOMIZE_CONFIG: dict[str, tuple[AdminStates, str, str]] = {
 }
 
 
-@router.callback_query(F.data.startswith("admin:customize:") & ~F.data.endswith(":menu"))
+@router.callback_query(
+    F.data.startswith("admin:customize:")
+    & ~F.data.endswith(":menu")
+    & (F.data != "admin:customize:en_menu")
+)
 async def cb_customize_field(callback: CallbackQuery, state: FSMContext) -> None:
     """Enter FSM state for customizing a scene text."""
     user = callback.from_user
@@ -657,5 +663,227 @@ async def fsm_pdf_wrong_type(message: Message) -> None:
     await message.answer(
         f"⚠️ Пожалуйста, отправьте файл (не фото, не текст).\n\nРазрешённые форматы: <b>{_FORMATS_LIST}</b>",
         reply_markup=admin_cancel_kb(),
+        parse_mode="HTML",
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🇬🇧 ENGLISH VERSION CUSTOMIZATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "admin:customize:en_menu")
+async def cb_en_customize_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    """Open English version customization submenu."""
+    user = callback.from_user
+    if not _is_admin(user.id):
+        await callback.answer("⛔ Нет доступа", show_alert=True)
+        return
+
+    await state.clear()
+    await callback.answer()
+
+    factory = get_session_factory()
+    async with factory() as session:
+        product = await get_or_create_product(session)
+
+    def _status(val) -> str:
+        return "<b>set ✅</b>" if val else "<i>fallback to RU</i>"
+
+    text = (
+        "🇬🇧 <b>English version</b>\n\n"
+        "Edit the English texts shown to users with EN language.\n"
+        "If a field is empty — the Russian version is shown instead.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📦 Name: {_status(product.name_en)}\n"
+        f"📝 Description: {_status(product.description_en)}\n"
+        f"🏠 Welcome: {_status(product.welcome_text_en)}\n"
+        f"🎉 Success: {_status(product.success_text_en)}\n"
+        f"♻️ Already purchased: {_status(product.already_purchased_text_en)}\n"
+        f"📎 File caption: {_status(product.file_caption_en)}\n"
+        f"📜 Confirm footer: {_status(product.confirm_footer_text_en)}\n"
+        f"🔘 Buy button: {_status(product.buy_button_text_en)}\n"
+        f"✅ Confirm button: {_status(product.confirm_button_text_en)}\n"
+        "━━━━━━━━━━━━━━━━━━━━"
+    )
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        text=text,
+        reply_markup=admin_en_customize_kb(),
+        parse_mode="HTML",
+    )
+
+
+# Config for EN fields
+_EN_FIELD_CONFIG: dict[str, tuple[AdminStates, str, str]] = {
+    "name_en": (
+        AdminStates.waiting_for_name_en,
+        "📦 <b>Product Name (EN)</b>",
+        "Enter the product name in English.\nSend <code>reset</code> to clear (will fallback to RU).",
+    ),
+    "description_en": (
+        AdminStates.waiting_for_description_en,
+        "📝 <b>Product Description (EN)</b>",
+        "Enter the product description in English.\nHTML is supported.\nSend <code>reset</code> to clear.",
+    ),
+    "buy_button_text_en": (
+        AdminStates.waiting_for_buy_button_text_en,
+        "🔘 <b>Buy Button Text (EN)</b>",
+        "Enter buy button text in English.\nUse <code>{price}</code> for price substitution.\nExample: <code>💳 Buy for {price} ₽</code>\nSend <code>reset</code> to clear.",
+    ),
+    "confirm_button_text_en": (
+        AdminStates.waiting_for_confirm_button_text_en,
+        "✅ <b>Confirm Button Text (EN)</b>",
+        "Enter confirm button text in English.\nExample: <code>✅ Confirm payment</code>\nSend <code>reset</code> to clear.",
+    ),
+    "welcome_text_en": (
+        AdminStates.waiting_for_welcome_text_en,
+        "🏠 <b>Welcome Text (EN)</b>",
+        "Enter the /start welcome text in English.\nHTML is supported. Use <code>{name}</code> for product name.\nSend <code>reset</code> to clear.",
+    ),
+    "success_text_en": (
+        AdminStates.waiting_for_success_text_en,
+        "🎉 <b>Payment Success Text (EN)</b>",
+        "Enter the text shown after successful payment in English.\nHTML is supported. Use <code>{name}</code> for product name.\nSend <code>reset</code> to clear.",
+    ),
+    "already_purchased_text_en": (
+        AdminStates.waiting_for_already_purchased_text_en,
+        "♻️ <b>Already Purchased Text (EN)</b>",
+        "Enter the text for users who already bought the product.\nHTML is supported. Use <code>{name}</code> for product name.\nSend <code>reset</code> to clear.",
+    ),
+    "file_caption_en": (
+        AdminStates.waiting_for_file_caption_en,
+        "📎 <b>File Caption (EN)</b>",
+        "Enter the caption shown under the sent file in English.\nUse <code>{name}</code> for product name.\nSend <code>reset</code> to clear.",
+    ),
+    "confirm_footer_text_en": (
+        AdminStates.waiting_for_confirm_footer_text_en,
+        "📜 <b>Confirm Footer Text (EN)</b>",
+        "Enter the footer text shown on the confirmation screen in English.\nHTML supported (links, INN, email).\nSend <code>reset</code> to clear.",
+    ),
+}
+
+
+@router.callback_query(F.data.startswith("admin:en:"))
+async def cb_en_edit_field(callback: CallbackQuery, state: FSMContext) -> None:
+    """Enter FSM state for editing an EN field."""
+    user = callback.from_user
+    if not _is_admin(user.id):
+        await callback.answer("⛔ Нет доступа", show_alert=True)
+        return
+
+    field = callback.data.split("admin:en:")[1]
+    config = _EN_FIELD_CONFIG.get(field)
+    if not config:
+        await callback.answer("Unknown field", show_alert=True)
+        return
+
+    fsm_state, title, prompt = config
+    await state.set_state(fsm_state)
+    await state.update_data(field=field)
+    await callback.answer()
+
+    logger.debug("Admin EN edit field | user_id={} field={}", user.id, field)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        product = await get_or_create_product(session)
+    current = getattr(product, field, None)
+    current_block = f"\n\n<b>Current value:</b>\n<i>{current[:200] if current else 'not set (fallback to RU)'}</i>"
+
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        text=f"{title}\n\n{prompt}{current_block}",
+        reply_markup=admin_cancel_en_kb(),
+        parse_mode="HTML",
+    )
+
+
+# EN field FSM receivers
+@router.message(AdminStates.waiting_for_name_en)
+async def fsm_receive_name_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "name_en")
+
+@router.message(AdminStates.waiting_for_description_en)
+async def fsm_receive_description_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "description_en")
+
+@router.message(AdminStates.waiting_for_buy_button_text_en)
+async def fsm_receive_buy_button_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "buy_button_text_en")
+
+@router.message(AdminStates.waiting_for_confirm_button_text_en)
+async def fsm_receive_confirm_button_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "confirm_button_text_en")
+
+@router.message(AdminStates.waiting_for_welcome_text_en)
+async def fsm_receive_welcome_text_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "welcome_text_en")
+
+@router.message(AdminStates.waiting_for_success_text_en)
+async def fsm_receive_success_text_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "success_text_en")
+
+@router.message(AdminStates.waiting_for_already_purchased_text_en)
+async def fsm_receive_already_purchased_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "already_purchased_text_en")
+
+@router.message(AdminStates.waiting_for_file_caption_en)
+async def fsm_receive_file_caption_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "file_caption_en")
+
+@router.message(AdminStates.waiting_for_confirm_footer_text_en)
+async def fsm_receive_confirm_footer_en(message: Message, state: FSMContext) -> None:
+    await _save_en_field(message, state, "confirm_footer_text_en")
+
+
+async def _save_en_field(message: Message, state: FSMContext, field: str) -> None:
+    """Save EN text field. 'reset' clears value (fallback to RU)."""
+    user = message.from_user
+    raw = (message.text or "").strip()
+    await state.clear()
+
+    value = None if raw.lower() in ("reset", "сброс", "/reset") else raw
+
+    factory = get_session_factory()
+    async with factory() as session:
+        product = await get_or_create_product(session)
+        updated = await update_product_field(session, product.id, field, value)
+        await session.commit()
+
+    if not updated:
+        await message.answer("❌ Error saving. Please try again.")
+        return
+
+    action = "reset (will fallback to RU)" if value is None else "saved"
+    logger.info("Admin EN field updated | user_id={} field={} action={}", user.id, field, action)
+
+    await message.answer(
+        f"✅ <b>EN field {action}!</b>",
+        parse_mode="HTML",
+    )
+    # Return to EN menu
+    factory2 = get_session_factory()
+    async with factory2() as session2:
+        product2 = await get_or_create_product(session2)
+
+    def _status(val) -> str:
+        return "<b>set ✅</b>" if val else "<i>fallback to RU</i>"
+
+    text = (
+        "🇬🇧 <b>English version</b>\n\n"
+        "Edit the English texts shown to users with EN language.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📦 Name: {_status(product2.name_en)}\n"
+        f"📝 Description: {_status(product2.description_en)}\n"
+        f"🏠 Welcome: {_status(product2.welcome_text_en)}\n"
+        f"🎉 Success: {_status(product2.success_text_en)}\n"
+        f"♻️ Already purchased: {_status(product2.already_purchased_text_en)}\n"
+        f"📎 File caption: {_status(product2.file_caption_en)}\n"
+        f"📜 Confirm footer: {_status(product2.confirm_footer_text_en)}\n"
+        f"🔘 Buy button: {_status(product2.buy_button_text_en)}\n"
+        f"✅ Confirm button: {_status(product2.confirm_button_text_en)}\n"
+        "━━━━━━━━━━━━━━━━━━━━"
+    )
+    await message.answer(
+        text=text,
+        reply_markup=admin_en_customize_kb(),
         parse_mode="HTML",
     )

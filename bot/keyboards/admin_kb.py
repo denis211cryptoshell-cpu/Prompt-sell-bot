@@ -60,6 +60,10 @@ def admin_customize_kb() -> InlineKeyboardMarkup:
         callback_data="admin:customize:confirm_footer_text",
     )
     builder.button(
+        text="🇬🇧 English версия",
+        callback_data="admin:customize:en_menu",
+    )
+    builder.button(
         text="◀️ Назад",
         callback_data="admin:menu",
     )
@@ -94,6 +98,30 @@ def admin_cancel_customize_kb() -> InlineKeyboardMarkup:
     """Cancel and go back to customization menu."""
     builder = InlineKeyboardBuilder()
     builder.button(text="❌ Отмена", callback_data="admin:customize:menu")
+    return builder.as_markup()
+
+
+def admin_en_customize_kb() -> InlineKeyboardMarkup:
+    """English version customization submenu."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📦 Name (EN)", callback_data="admin:en:name_en")
+    builder.button(text="📝 Description (EN)", callback_data="admin:en:description_en")
+    builder.button(text="🔘 Buy button (EN)", callback_data="admin:en:buy_button_text_en")
+    builder.button(text="✅ Confirm button (EN)", callback_data="admin:en:confirm_button_text_en")
+    builder.button(text="🏠 Welcome text (EN)", callback_data="admin:en:welcome_text_en")
+    builder.button(text="🎉 Success text (EN)", callback_data="admin:en:success_text_en")
+    builder.button(text="♻️ Already purchased (EN)", callback_data="admin:en:already_purchased_text_en")
+    builder.button(text="📎 File caption (EN)", callback_data="admin:en:file_caption_en")
+    builder.button(text="📜 Confirm footer (EN)", callback_data="admin:en:confirm_footer_text_en")
+    builder.button(text="◀️ Назад / Back", callback_data="admin:customize:menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def admin_cancel_en_kb() -> InlineKeyboardMarkup:
+    """Cancel and go back to EN customization menu."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="❌ Cancel", callback_data="admin:customize:en_menu")
     return builder.as_markup()
 
 
