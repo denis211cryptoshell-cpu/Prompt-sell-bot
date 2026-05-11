@@ -165,18 +165,19 @@ async def cb_purchase_confirm(callback: CallbackQuery, bot: Bot) -> None:
             user.id, inv_id, total_amount, price_usd,
         )
 
+        test_note = "\n\n⚠️ <i>Test mode: no real money is charged</i>" if settings.ROBOKASSA_TEST_MODE else ""
         await callback.message.edit_text(  # type: ignore[union-attr]
             text=(
-                f"💳 *Payment via Robokassa*\n\n"
-                f"Product: *{product.get_name('en')}*\n"
-                f"Amount: *{price_usd}*\n"
-                f"Order: `#{inv_id}`\n\n"
-                f"Click the button below to go to the payment page\\.\n\n"
-                f"_The file will be delivered automatically after payment\\._"
-                + ("\n\n⚠️ _Test mode: no real money is charged_" if settings.ROBOKASSA_TEST_MODE else "")
+                f"💳 <b>Payment via Robokassa</b>\n\n"
+                f"📦 Product: <b>{product.get_name('en')}</b>\n"
+                f"💵 Amount: <b>{price_usd}</b>\n"
+                f"🔖 Order: <code>#{inv_id}</code>\n\n"
+                f"Click the button below to go to the payment page.\n\n"
+                f"<i>The file will be delivered automatically after payment.</i>"
+                f"{test_note}"
             ),
             reply_markup=pay_with_robokassa_kb(pay_url, product.id),
-            parse_mode="MarkdownV2",
+            parse_mode="HTML",
         )
 
 
@@ -201,9 +202,9 @@ async def cb_download_again(callback: CallbackQuery, bot: Bot) -> None:
     if not product.pdf_file_id:
         logger.warning("Download: no file_id | user_id={} product_id={}", user.id, product.id)
         await callback.message.edit_text(  # type: ignore[union-attr]
-            text="⚠️ *File temporarily unavailable*\n\nThe administrator has been notified\\.",
+            text="⚠️ <b>File temporarily unavailable</b>\n\nThe administrator has been notified.",
             reply_markup=back_to_menu_kb(),
-            parse_mode="MarkdownV2",
+            parse_mode="HTML",
         )
         return
 
@@ -267,6 +268,6 @@ async def _complete_purchase(
         )
         await bot.send_message(
             chat_id=chat_id,
-            text="⚠️ *File temporarily unavailable*\n\nThe administrator has been notified\\.",
-            parse_mode="MarkdownV2",
+            text="⚠️ <b>File temporarily unavailable</b>\n\nThe administrator has been notified.",
+            parse_mode="HTML",
         )
