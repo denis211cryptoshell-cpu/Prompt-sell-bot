@@ -114,35 +114,35 @@ class Product(Base):
 
     def get_welcome_text(self, lang: str = "ru") -> str:
         if lang == "en":
-            # EN custom → RU custom → hardcoded EN default
-            return self.welcome_text_en or self.welcome_text or _DEFAULT_WELCOME_EN
+            # EN custom → hardcoded EN default (NO RU fallback — RU text must not appear for EN users)
+            return self.welcome_text_en or _DEFAULT_WELCOME_EN
         return self.welcome_text or _DEFAULT_WELCOME
 
     def get_success_text(self, lang: str = "ru") -> str:
         if lang == "en":
-            t = self.success_text_en or self.success_text or _DEFAULT_SUCCESS_EN
+            t = self.success_text_en or _DEFAULT_SUCCESS_EN
         else:
             t = self.success_text or _DEFAULT_SUCCESS
         return t.replace("{name}", self.get_name(lang))
 
     def get_already_purchased_text(self, lang: str = "ru") -> str:
         if lang == "en":
-            t = self.already_purchased_text_en or self.already_purchased_text or _DEFAULT_ALREADY_PURCHASED_EN
+            t = self.already_purchased_text_en or _DEFAULT_ALREADY_PURCHASED_EN
         else:
             t = self.already_purchased_text or _DEFAULT_ALREADY_PURCHASED
         return t.replace("{name}", self.get_name(lang))
 
     def get_file_caption(self, lang: str = "ru") -> str:
         if lang == "en":
-            t = self.file_caption_en or self.file_caption or "📄 {name}"
+            t = self.file_caption_en or "📄 {name}"
         else:
             t = self.file_caption or "📄 {name}"
         return t.replace("{name}", self.get_name(lang))
 
     def get_confirm_footer(self, lang: str = "ru") -> str:
         if lang == "en":
-            # EN custom → RU custom → hardcoded EN default
-            return self.confirm_footer_text_en or self.confirm_footer_text or _DEFAULT_CONFIRM_FOOTER_EN
+            # EN custom → hardcoded EN default (NO RU fallback)
+            return self.confirm_footer_text_en or _DEFAULT_CONFIRM_FOOTER_EN
         return self.confirm_footer_text or _DEFAULT_CONFIRM_FOOTER
 
     def get_buy_button_text(self, lang: str = "ru") -> str:
