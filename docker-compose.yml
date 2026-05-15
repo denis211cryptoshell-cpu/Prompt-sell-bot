@@ -21,6 +21,9 @@ services:
       - ./data:/app/data
       # Loguru log files
       - ./logs:/app/logs
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     networks:
       - bot-network
     # Health check — ensures container is restarted if bot hangs
