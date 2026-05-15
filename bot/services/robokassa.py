@@ -119,7 +119,7 @@ def verify_result_signature(out_sum: str, inv_id: str, signature: str) -> bool:
 
 # ─── Polling-based payment check (no webhook needed) ─────────────────────────
 
-_OPSTATE_URL = "https://merchant.robokassa.ru/Merchant/WebService/Service.asmx/OpStateExt"
+_OPSTATE_URL = "https://auth.robokassa.ru/Merchant/WebService/Service.asmx/OpStateExt"
 
 
 async def check_payment_status(inv_id: int, out_sum: int) -> bool:
