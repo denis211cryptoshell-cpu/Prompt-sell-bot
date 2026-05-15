@@ -23,7 +23,7 @@ def language_kb(current_lang: str = "ru") -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-@router.callback_query(F.data == "menu:language")
+@router.callback_query(F.data.in_({"menu:language", "lang:select"}))
 async def cb_language_menu(callback: CallbackQuery) -> None:
     """Show language selection screen."""
     user_id = callback.from_user.id

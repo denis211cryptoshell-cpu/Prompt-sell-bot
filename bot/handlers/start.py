@@ -1,4 +1,4 @@
-"""Start and main menu handlers — EN only."""
+"""Start and main menu handlers — fully localised."""
 from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
@@ -6,7 +6,7 @@ from loguru import logger
 
 from bot.database import get_session_factory
 from bot.keyboards.main_kb import main_menu_kb
-from bot.services.user_service import get_or_create_user
+from bot.services.user_service import get_or_create_user, get_user_lang
 from bot.services.product_service import get_or_create_product
 
 router = Router(name="start")
@@ -22,17 +22,18 @@ async def cmd_start(message: Message) -> None:
     factory = get_session_factory()
     async with factory() as session:
         db_user, created = await get_or_create_user(session, user)
+        lang = db_user.language
         product = await get_or_create_product(session)
         await session.commit()
 
     logger.info(
-        "/start | user_id={} username={} new_user={}",
-        user.id, user.username, created,
+        "/start | user_id={} username={} new_user={} lang={}",
+        user.id, user.username, created, lang,
     )
 
     await message.answer(
-        text=product.get_welcome_text("en"),
-        reply_markup=main_menu_kb(),
+        text=product.get_welcome_text(lang),
+        reply_markup=main_menu_kb(lang),
         parse_mode="HTML",
     )
 
@@ -46,10 +47,11 @@ async def cb_main_menu(callback: CallbackQuery) -> None:
 
     factory = get_session_factory()
     async with factory() as session:
+        lang = await get_user_lang(session, user.id)
         product = await get_or_create_product(session)
 
     await callback.message.edit_text(  # type: ignore[union-attr]
-        text=product.get_welcome_text("en"),
-        reply_markup=main_menu_kb(),
+        text=product.get_welcome_text(lang),
+        reply_markup=main_menu_kb(lang),
         parse_mode="HTML",
     )

@@ -21,7 +21,7 @@ TEXTS: dict[str, str] = {
         "📦 <b>{name}</b>\n\n"
         "{description}\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "💵 Цена: <b>{price_usd}</b> (~{price} ₽)\n"
+        "💰 Цена: <b>{price} ₽</b> (~{price_usd})\n"
         "{pdf_status}"
         "━━━━━━━━━━━━━━━━━━━━"
     ),
@@ -44,10 +44,10 @@ TEXTS: dict[str, str] = {
     # ── Purchase flow ──────────────────────────────────────────────────────────
     "confirm_title": "🛒 <b>Подтверждение покупки</b>",
     "confirm_product": "📦 Товар: <b>{name}</b>",
-    "confirm_price_demo": "💰 Итого: <b>{price_usd}</b> (~{price} ₽)",
-    "confirm_price_base": "💵 Цена продавца: <b>{price_usd}</b> (~{price} ₽)",
+    "confirm_price_demo": "💰 Итого: <b>{price} ₽</b> (~{price_usd})",
+    "confirm_price_base": "💵 Цена продавца: <b>{price} ₽</b> (~{price_usd})",
     "confirm_commission": "🏦 Комиссия Robokassa ({rate}%): ~{commission} ₽",
-    "confirm_total": "💳 <b>Итого к оплате: {price_usd}</b> (~{price} ₽)",
+    "confirm_total": "💳 <b>Итого к оплате: {price} ₽</b> (~{price_usd})",
     "confirm_demo_note": "<i>🧪 Режим демо — реальная оплата не требуется</i>",
     "separator": "━━━━━━━━━━━━━━━━━━━━",
 
