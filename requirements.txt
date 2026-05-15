@@ -1,5 +1,5 @@
 # Telegram Bot
-aiogram==3.27.8
+aiogram==3.28.2
 
 # Database
 sqlalchemy==2.0.41
