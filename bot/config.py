@@ -19,10 +19,15 @@ class Settings(BaseSettings):
 
     # ── Robokassa ─────────────────────────────────────────────────────────────
     ROBOKASSA_LOGIN: str = ""
-    ROBOKASSA_PASSWORD1: Optional[SecretStr] = None   # for generating payment links
-    ROBOKASSA_PASSWORD2: Optional[SecretStr] = None   # for verifying result notifications
-    # Commission rate as a decimal (e.g. 0.05 = 5%).
-    # Standard Robokassa rate: 5% for cards, may vary by tariff.
+    # Боевые пароли (используются при ROBOKASSA_TEST_MODE=False)
+    ROBOKASSA_PASSWORD1: Optional[SecretStr] = None
+    ROBOKASSA_PASSWORD2: Optional[SecretStr] = None
+    # Тестовые пароли (используются при ROBOKASSA_TEST_MODE=True)
+    # Берутся в ЛК Robokassa → Технические настройки → Тестовый пароль #1 / #2
+    ROBOKASSA_TEST_PASSWORD1: Optional[SecretStr] = None
+    ROBOKASSA_TEST_PASSWORD2: Optional[SecretStr] = None
+    # Commission rate as a decimal (e.g. 0.099 = 9.9%).
+    # Уточните в ЛК Robokassa → Тарифы
     ROBOKASSA_COMMISSION_RATE: float = 0.05
     ROBOKASSA_TEST_MODE: bool = True   # set False to take real money
 

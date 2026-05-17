@@ -48,6 +48,29 @@ def calculate_total(base_price: int) -> dict[str, int]:
     }
 
 
+def _get_password1() -> str:
+    """Return correct Password1 depending on test/production mode."""
+    if settings.ROBOKASSA_TEST_MODE:
+        if settings.ROBOKASSA_TEST_PASSWORD1:
+            return settings.ROBOKASSA_TEST_PASSWORD1.get_secret_value()
+        # fallback: use production password1 (works if test passwords not set separately)
+        logger.warning("ROBOKASSA_TEST_PASSWORD1 not set — falling back to ROBOKASSA_PASSWORD1")
+    if not settings.ROBOKASSA_PASSWORD1:
+        raise ValueError("ROBOKASSA_PASSWORD1 is not configured")
+    return settings.ROBOKASSA_PASSWORD1.get_secret_value()
+
+
+def _get_password2() -> str:
+    """Return correct Password2 depending on test/production mode."""
+    if settings.ROBOKASSA_TEST_MODE:
+        if settings.ROBOKASSA_TEST_PASSWORD2:
+            return settings.ROBOKASSA_TEST_PASSWORD2.get_secret_value()
+        logger.warning("ROBOKASSA_TEST_PASSWORD2 not set — falling back to ROBOKASSA_PASSWORD2")
+    if not settings.ROBOKASSA_PASSWORD2:
+        raise ValueError("ROBOKASSA_PASSWORD2 is not configured")
+    return settings.ROBOKASSA_PASSWORD2.get_secret_value()
+
+
 def generate_payment_link(
     inv_id: int,
     amount_rub: int,
@@ -58,9 +81,10 @@ def generate_payment_link(
     Generate Robokassa payment URL.
 
     Signature: MD5(MerchantLogin:OutSum:InvId:Password1)
+    In test mode uses ROBOKASSA_TEST_PASSWORD1 (separate from production Password1).
     """
     login = settings.ROBOKASSA_LOGIN
-    password1 = settings.ROBOKASSA_PASSWORD1.get_secret_value()  # type: ignore[union-attr]
+    password1 = _get_password1()
     out_sum = fmt_sum(amount_rub)
 
     # Build signature input
@@ -97,12 +121,14 @@ def verify_result_signature(out_sum: str, inv_id: str, signature: str) -> bool:
     Verify Robokassa ResultURL notification signature.
 
     Robokassa sends: SignatureValue = MD5(OutSum:InvId:Password2)
+    In test mode uses ROBOKASSA_TEST_PASSWORD2.
     """
-    if not settings.ROBOKASSA_PASSWORD2:
+    try:
+        password2 = _get_password2()
+    except ValueError:
         logger.error("ROBOKASSA_PASSWORD2 not configured — cannot verify signature")
         return False
 
-    password2 = settings.ROBOKASSA_PASSWORD2.get_secret_value()  # type: ignore[union-attr]
     expected = _md5(f"{out_sum}:{inv_id}:{password2}")
 
     is_valid = expected == signature.upper()
@@ -133,12 +159,13 @@ async def check_payment_status(inv_id: int, out_sum: int) -> bool:
 
     Returns True if payment was successfully completed.
     """
-    if not settings.ROBOKASSA_PASSWORD2:
+    try:
+        password2 = _get_password2()
+    except ValueError:
         logger.error("check_payment_status: ROBOKASSA_PASSWORD2 not set")
         return False
 
     login = settings.ROBOKASSA_LOGIN
-    password2 = settings.ROBOKASSA_PASSWORD2.get_secret_value()  # type: ignore[union-attr]
     signature = _md5(f"{login}:{inv_id}:{password2}")
 
     params = {
