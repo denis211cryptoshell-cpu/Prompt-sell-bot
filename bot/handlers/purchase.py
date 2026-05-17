@@ -172,7 +172,8 @@ async def cb_purchase_confirm(callback: CallbackQuery, bot: Bot) -> None:
         pay_url = generate_payment_link(
             inv_id=inv_id,
             amount_rub=total_amount,
-            description=product.get_name(lang)[:100],
+            description=product.get_name(lang),
+            lang=lang,
         )
 
         usd_val = await rub_to_usd(total_amount)

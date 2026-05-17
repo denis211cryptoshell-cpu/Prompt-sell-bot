@@ -1,6 +1,7 @@
 """Robokassa payment service — link generation, signature verification, status polling."""
 import hashlib
-from urllib.parse import urlencode
+import re
+from urllib.parse import urlencode, quote
 from typing import Optional
 import xml.etree.ElementTree as ET
 
@@ -71,34 +72,83 @@ def _get_password2() -> str:
     return settings.ROBOKASSA_PASSWORD2.get_secret_value()
 
 
+def _sanitize_description(text: str) -> str:
+    """
+    Sanitize description for Robokassa:
+    - Strip HTML tags
+    - Replace non-ASCII characters with transliterated/safe equivalents
+    - Keep only printable ASCII (Robokassa sometimes rejects non-Latin in Description)
+    - Limit to 100 chars
+    """
+    # Remove HTML tags
+    text = re.sub(r"<[^>]+>", "", text)
+    # Replace common Cyrillic characters with Latin transliteration
+    _translit = {
+        "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo",
+        "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+        "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+        "ф": "f", "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch",
+        "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+        "А": "A", "Б": "B", "В": "V", "Г": "G", "Д": "D", "Е": "E", "Ё": "Yo",
+        "Ж": "Zh", "З": "Z", "И": "I", "Й": "Y", "К": "K", "Л": "L", "М": "M",
+        "Н": "N", "О": "O", "П": "P", "Р": "R", "С": "S", "Т": "T", "У": "U",
+        "Ф": "F", "Х": "Kh", "Ц": "Ts", "Ч": "Ch", "Ш": "Sh", "Щ": "Sch",
+        "Ъ": "", "Ы": "Y", "Ь": "", "Э": "E", "Ю": "Yu", "Я": "Ya",
+    }
+    result = []
+    for ch in text:
+        if ch in _translit:
+            result.append(_translit[ch])
+        elif ord(ch) < 128:
+            result.append(ch)
+        else:
+            result.append("_")
+    clean = "".join(result)
+    # Remove any remaining non-printable or special chars except basic punctuation
+    clean = re.sub(r"[^\w\s\-.,!?()#@/]", "", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    return clean[:100]
+
+
 def generate_payment_link(
     inv_id: int,
     amount_rub: int,
     description: str,
     user_email: Optional[str] = None,
+    lang: str = "ru",
 ) -> str:
     """
     Generate Robokassa payment URL.
 
     Signature: MD5(MerchantLogin:OutSum:InvId:Password1)
     In test mode uses ROBOKASSA_TEST_PASSWORD1 (separate from production Password1).
+
+    Description is sanitized to ASCII to avoid Robokassa error 30 with non-Latin text.
     """
     login = settings.ROBOKASSA_LOGIN
     password1 = _get_password1()
     out_sum = fmt_sum(amount_rub)
 
-    # Build signature input
+    # Sanitize description — Robokassa requires ASCII-safe Description
+    safe_description = _sanitize_description(description)
+    if not safe_description:
+        safe_description = f"Order #{inv_id}"
+
+    # Build signature input (uses sanitized description is NOT part of signature — only OutSum:InvId)
     sig_parts = f"{login}:{out_sum}:{inv_id}:{password1}"
     signature = _md5(sig_parts)
+
+    # Culture: Robokassa payment page language
+    culture = "en" if lang == "en" else "ru"
 
     params: dict[str, str] = {
         "MerchantLogin": login,  # type: ignore[dict-item]
         "OutSum": out_sum,
         "InvId": str(inv_id),
-        "Description": description[:100],  # max 100 chars
+        "Description": safe_description,
         "SignatureValue": signature,
         "Encoding": "utf-8",
-        "Culture": "ru",
+        "Culture": culture,
     }
 
     if user_email:
@@ -107,11 +157,12 @@ def generate_payment_link(
     if settings.ROBOKASSA_TEST_MODE:
         params["IsTest"] = "1"
 
-    url = ROBOKASSA_BASE_URL + "?" + urlencode(params, quote_via=lambda s, *_: s)
+    # Use standard urlencode with proper percent-encoding
+    url = ROBOKASSA_BASE_URL + "?" + urlencode(params, quote_via=quote)
 
     logger.debug(
-        "Robokassa link generated | inv_id={} amount={} test={}",
-        inv_id, out_sum, settings.ROBOKASSA_TEST_MODE,
+        "Robokassa link generated | inv_id={} amount={} desc={!r} culture={} test={}",
+        inv_id, out_sum, safe_description, culture, settings.ROBOKASSA_TEST_MODE,
     )
     return url
 
