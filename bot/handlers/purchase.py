@@ -197,6 +197,15 @@ async def cb_purchase_confirm(callback: CallbackQuery, bot: Bot) -> None:
                 else "⚠️ <i>Test mode: no real money is charged</i>"
             )
 
+        # For EN users: explain that payment page shows RUB (Russian rubles)
+        rub_note = ""
+        if lang == "en":
+            rub_note = (
+                f"\n\n⚠️ <i>The payment page displays the price in Russian Rubles (₽).\n"
+                f"Amount: <b>{total_amount:,} ₽</b> ≈ <b>{price_usd}</b>\n"
+                f"Your bank will convert automatically at the current rate.</i>"
+            ).replace(",", "\u00a0")
+
         await callback.message.edit_text(  # type: ignore[union-attr]
             text=(
                 f"💳 <b>{'Оплата через Robokassa' if lang == 'ru' else 'Payment via Robokassa'}</b>\n\n"
@@ -205,6 +214,7 @@ async def cb_purchase_confirm(callback: CallbackQuery, bot: Bot) -> None:
                 f"🔖 {'Заказ' if lang == 'ru' else 'Order'}: <code>#{inv_id}</code>\n\n"
                 f"{'Нажмите кнопку ниже для перехода на страницу оплаты.' if lang == 'ru' else 'Click the button below to go to the payment page.'}\n\n"
                 f"<i>{'Файл будет доставлен автоматически после оплаты.' if lang == 'ru' else 'The file will be delivered automatically after payment.'}</i>"
+                f"{rub_note}"
                 f"{test_note}"
             ),
             reply_markup=pay_with_robokassa_kb(pay_url, product.id, lang),
